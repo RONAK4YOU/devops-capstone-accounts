@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: accounts-ci-cd-run
+spec:
+  pipelineRef:
+    name: accounts-ci-cd
+  params:
+    - name: image
+      value: accounts:1.0
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: accounts-source

@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: accounts-ci-cd
+spec:
+  params:
+    - name: image
+      type: string
+      default: accounts:1.0
+  workspaces:
+    - name: source
+  tasks:
+    - name: test
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: test
+            image: python:3.12-slim
+            workingDir: $(workspaces.source.path)
+            script: |
+              pip install -r requirements-dev.txt
+              nosetests --with-coverage --cover-package=service
+    - name: build-and-deploy
+      runAfter: [test]
+      params:
+        - name: image
+          value: $(params.image)
+      taskSpec:
+        params:
+          - name: image
+            type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: build
+            image: gcr.io/kaniko-project/executor:v1.23.2
+            args: ["--dockerfile=$(workspaces.source.path)/Dockerfile", "--context=$(workspaces.source.path)", "--destination=$(params.image)"]
+          - name: deploy
+            image: bitnami/kubectl:latest
+            workingDir: $(workspaces.source.path)
+            script: |
+              kubectl apply -f k8s/accounts.yaml
+              kubectl set image deployment/accounts accounts=$(params.image)
+              kubectl rollout status deployment/accounts
